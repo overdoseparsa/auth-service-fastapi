@@ -9,6 +9,9 @@ from fastapi import (
     Response,
 )
 
+from .controllers import (
+    UserRegistrationController,
+)
 from .dependencies import get_registration_service, get_user_selector
 from .schemas import (
     ListUserResponse,
@@ -21,9 +24,6 @@ from .schemas import (
     UserWithProfile,
 )
 from .selectors import UserSelector
-from .service import (
-    UserRegistrationService,
-)
 
 """
 Hint : Apis Error handeling in the main.py with
@@ -37,7 +37,9 @@ router = APIRouter()
 @router.post("/users", response_model=UserRegiserWithProfile)
 async def register_user(
     user_register_data: UserRegister,
-    registration_service: UserRegistrationService = Depends(get_registration_service),
+    registration_service: UserRegistrationController = Depends(
+        get_registration_service
+    ),
 ):
     user, token, profile = await registration_service.register(
         data=user_register_data,
@@ -131,7 +133,9 @@ async def get_user_profile(
 async def update_profile(
     user_id: int,
     user_update_data: UserUpdate,
-    registration_service: UserRegistrationService = Depends(get_registration_service),
+    registration_service: UserRegistrationController = Depends(
+        get_registration_service
+    ),
 ):
     user = await registration_service.update_user(
         user_id=user_id,

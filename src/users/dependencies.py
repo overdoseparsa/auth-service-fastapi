@@ -1,13 +1,13 @@
 from fastapi import Depends
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.security.utils.hashing import hash_password
 from core.security.utils.token_utils import generate_token, hash_token
 from infrastructure.sqlalchemy.AsyncSession import AsyncSessionLocal
 
+from .controllers import UserRegistrationController
 from .repository import ProfileRepository, UserRepository
 from .selectors import UserSelector
-from .service import ProfileService, UserRegistrationService, UserService
+from .service import ProfileService, UserService
 
 
 def get_user_repo():
@@ -37,7 +37,7 @@ def get_registration_service(
     user_service: UserService = Depends(get_user_service),
     profile_service: ProfileService = Depends(get_profile_service),
 ):
-    return UserRegistrationService(
+    return UserRegistrationController(
         user_service=user_service,
         profile_service=profile_service,
         session_factory=AsyncSessionLocal,
