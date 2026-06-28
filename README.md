@@ -6,7 +6,7 @@
 ![fastapi](https://img.shields.io/badge/fastapi-0.135-green)
 ![license](https://img.shields.io/badge/license-MIT-brightgreen)
 
-[Project Setup](#project-setup) • [Endpoints](#endpoints) • [System Design](#system-design) • [Architecture](#architecture) • [Token Security](#token-security) • [Environment Variables](#environment-variables) • [Future Improvements](#future-improvements)
+[Project Setup](#project-setup) • [Endpoints](#endpoints) • [System Design](#system-design) • [Architecture](#architecture) • [Token Security](#token-security) • [Environment Variables](#environment-variables) • [Future Improvements](#future-improvements) • [Unit Tests](#unit-tests) • [Integration Tests](#integration-tests) • [E2E Tests](#e2e-tests)
 
 ---
 
@@ -189,6 +189,57 @@ src/
 - **Repository Pattern** — `BaseRepository[T]` is generic, providing `find`, `create`, `update`, `delete`, `exists`, and `filter_by_*` methods reused across all domain repositories.
 - **Dependency Injection** — services, repositories, and infrastructure clients are injected at the controller level, keeping layers testable in isolation.
 - **Async-first** — all DB and cache operations are fully async via `asyncpg` and `aioredis`.
+
+---
+
+## Unit Tests
+
+Unit tests target **services only**, not controllers.
+
+Session is passed directly as a parameter to service methods, so tests run in complete isolation — no database, no Docker, no real connection needed. A lightweight `Session_Mock()` simulates all async session behaviour:
+
+```python
+async def Session_Mock():
+    session = AsyncMock()
+    session.execute.side_effect  = execute   # prints query, sleeps 10ms
+    session.commit.side_effect   = commit
+    session.rollback.side_effect = rollback
+    session.add.side_effect      = add
+    session.flush.side_effect    = flush
+    result = AsyncMock()
+    result.scalar_one_or_none.return_value = None
+    session.execute.return_value = result
+    return session
+```
+
+`UserRegistrationController` is intentionally **not** unit tested — it contains no domain logic, only thin orchestration. It is covered by integration tests instead.
+
+> Mocking `session_factory` at the controller level would require reproducing `async with session_factory() as session` context manager behaviour — extra complexity with zero benefit.
+
+---
+
+## Integration Tests
+
+Integration tests cover **controller → service → real DB** round-trips using a real `async_sessionmaker` pointed at a test database (PostgreSQL running in Docker).
+
+Covered flows:
+
+- `POST /users` — user + profile created atomically, duplicate email/username raises correct error
+- `POST /auth/login` — valid credentials return token pair, wrong password raises 401
+- `POST /auth/refresh` — valid refresh token rotates and issues new access token
+- `POST /auth/logout` — both tokens blacklisted, subsequent requests rejected
+
+---
+
+## E2E Tests
+
+End-to-end tests run the full HTTP stack via `AsyncClient` against a live application instance with real infrastructure (PostgreSQL + Redis).
+
+Covered scenarios:
+
+- Full registration → login → access protected route → logout → verify token rejected
+- Refresh token reuse detection — second use of a spent refresh token revokes the entire family
+- Concurrent login sessions — each session has an independent `family_id`
 
 ---
 
