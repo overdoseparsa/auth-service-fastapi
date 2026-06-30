@@ -1,5 +1,13 @@
 import logging
-from typing import Awaitable, Callable, List, Optional
+from typing import (
+    Awaitable,
+    Callable,
+    List,
+    Optional,
+    Tuple,
+    Dict,
+    Any
+)
 
 from asyncpg.exceptions import UniqueViolationError
 from sqlalchemy.exc import DBAPIError, IntegrityError
@@ -47,7 +55,7 @@ class UserService(BaseAbstractService):
         self.hasher_password = hasher_password
         self.hasher_token = hasher_token
 
-    async def pre_create_user_process(self, data: UserRegister):
+    async def pre_create_user_process(self, data: UserRegister) -> Tuple[Dict[str, Any], str]:
         logger.info("Creating user", extra={"email": data.email})
 
         user_dict = data.model_dump()
@@ -68,6 +76,7 @@ class UserService(BaseAbstractService):
             **user_dict,
         }
         return fields, token
+
 
     async def db_create_user_process(self, session: AsyncSession, fields: dict):
 
@@ -111,7 +120,7 @@ class UserService(BaseAbstractService):
             "User created successfully", extra={"user_id": user.id, "email": user.email}
         )
 
-        "TODO save to the cache user by ttl"
+        
 
     async def update_user(self, session: AsyncSession, user_id: int, data: UserUpdate):
         try:
