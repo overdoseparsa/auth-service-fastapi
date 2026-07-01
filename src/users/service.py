@@ -130,17 +130,66 @@ class UserService(BaseAbstractService):
 
         
 
-    async def update_user(self, session: AsyncSession, user_id: int, data: UserUpdate):
+    # async def update_user(self, session: AsyncSession, user_id: int, data: UserUpdate):
+    #     try:
+    #         updated_user = await self.user_repo.update(
+    #             session=session,
+    #             user_id=user_id,
+    #             update_data=data.model_dump(exclude_unset=True),
+    #         )
+
+    #         return updated_user
+    #     except Exception as e:
+    #         raise e
+        
+
+    async def update_user(self, session: AsyncSession, user_id: int, data: UserUpdate) -> User:
+        user = await self.user_repo.get(session, user_id)
+        if not user:
+            raise UserNotExists("User not found")
+
         try:
             updated_user = await self.user_repo.update(
                 session=session,
-                user_id=user_id,
-                update_data=data.model_dump(exclude_unset=True),
+                user_id=user.id,
+                update_data = data.model_dump(exclude_unset=True),
             )
-
             return updated_user
-        except Exception as e:
-            raise e
+
+        except IntegrityError as exc:
+            orig_exc = exc.orig
+            if not orig_exc:
+                raise DatabaseOperationError("Database integrity violation during update.")
+
+            pgcode = getattr(orig_exc, "pgcode", None)
+
+            if pgcode == "23505":
+                constraint_name = getattr(orig_exc, "constraint_name", None)
+                if not constraint_name and hasattr(orig_exc, "message"):
+                    constraint_name = str(orig_exc.message)
+
+                await logger.warning(
+                    "Unique constraint violation during user update",
+                    extra={"user_id": user_id, "constraint": constraint_name}
+                )
+
+                if constraint_name:
+                    if "uq_users_email" in constraint_name:
+                        raise EmailAlreadyExists("Email is already registered.")
+                    if "uq_users_username" in constraint_name:
+                        raise UsernameAlreadyExists("Username is already taken.")
+                
+                raise DatabaseOperationError("Unique constraint violated on user update.")
+
+            if pgcode == "40001":
+                raise ConcurrencyError("Serialization Failure. Please retry transaction.")
+
+            raise DatabaseOperationError(f"Database error during update: {exc}")
+
+        except DBAPIError as exc:
+            await logger.critical(f"Database connection error during update for user {user_id}", exc_info=True)
+            raise DatabaseOperationError(f"Database connection error: {exc}")
+
 
     # async def create_bulk_user(self, session: AsyncSession, users_data: UsersRegister):
     #     try:
