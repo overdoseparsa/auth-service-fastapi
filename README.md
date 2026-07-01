@@ -64,6 +64,14 @@ http://localhost:8000/docs
 
 ---
 
+8 — Run Tests
+
+```bash
+uv run pytest 
+```
+
+---
+
 ## Endpoints
 
 - `/docs/` : interactive Swagger UI
