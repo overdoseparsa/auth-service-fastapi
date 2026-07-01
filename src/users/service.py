@@ -55,6 +55,7 @@ class UserService(BaseAbstractService):
         self.hasher_password = hasher_password
         self.hasher_token = hasher_token
 
+
     async def pre_create_user_process(self, data: UserRegister) -> Tuple[Dict[str, Any], str]:
         logger.info("Creating user", extra={"email": data.email})
 
@@ -78,41 +79,49 @@ class UserService(BaseAbstractService):
         return fields, token
 
 
-    async def db_create_user_process(self, session: AsyncSession, fields: dict):
-
+    async def db_create_user_process(self, session: AsyncSession, fields: dict) -> User:
         try:
             return await self.user_repo.create(session, **fields)
 
         except IntegrityError as exc:
-            print("Error from debugging ,,, ", exc)
-            # hint : This work just in postgres database driver
-            if exc.orig.pgcode == "23505":  # unique_violation
-                print(
-                    "Error3 from debugging ,,, ",
-                    type(exc),
-                    "yupe3",
-                    type(exc.orig),
-                    "type3 ... ",
-                    type(exec),
+            orig_exc = exc.orig
+            
+            if not orig_exc:
+                logger.error("IntegrityError occurred without underlying driver exception")
+                raise DatabaseOperationError("Database integrity violation occurred")
+
+            pgcode = getattr(orig_exc, "pgcode", None)
+
+            if pgcode == "40001":
+                raise ConcurrencyError("Serialization Failure. Please retry transaction.")
+
+            if pgcode == "23505":
+                constraint_name = getattr(orig_exc, "constraint_name", None)
+                
+                if not constraint_name and hasattr(orig_exc, "message"):
+                    constraint_name = str(orig_exc.message)
+
+                logger.warning(
+                    "Unique constraint violation occurred",
+                    extra={"constraint": constraint_name}
                 )
 
-                if isinstance(exc, UniqueViolationError):
-                    constraint: str | None = get_constraint_name_postgres(exc)
+                if constraint_name:
+                    if "uq_users_email" in constraint_name:
+                        raise EmailAlreadyExists("Email is already registered.")
+                    if "uq_users_username" in constraint_name:
+                        raise UsernameAlreadyExists("Username is already taken.")
+                    if "uq_users_token_hash" in constraint_name:
+                        raise DatabaseOperationError("Token collision detected.")
 
-                    if constraint == "uq_users_email":
-                        raise EmailAlreadyExists(message="email is alredey exist's")
+                raise DatabaseOperationError("Unique constraint violated on user creation.")
 
-                    if constraint == "uq_users_username":
-                        raise UsernameAlreadyExists("username already exists")
+            logger.error("Database integrity error occurred", exc_info=True)
+            raise DatabaseOperationError(f"Database validation failed: {exc}")
 
-            if exc.orig.pgcode == "40001":  #  Serialization Failure
-                raise ConcurrencyError("Serialization Failure")
-
-            raise DatabaseOperationError(f"DatabaseError : Check System {exc}")
-
-        except DBAPIError as e:
-            logger.error(f"Database connection error: {e}")
-            raise DatabaseOperationError(f"DatabaseError : Check System {e}")
+        except DBAPIError as exc:
+            logger.critical("Database connection or API level failure", exc_info=True)
+            raise DatabaseOperationError(f"Database connection error: {exc}")
 
     async def after_create_user_process(self, user: User) -> None:
 
