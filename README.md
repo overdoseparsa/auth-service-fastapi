@@ -6,7 +6,7 @@
 ![fastapi](https://img.shields.io/badge/fastapi-0.135-green)
 ![license](https://img.shields.io/badge/license-MIT-brightgreen)
 
-[Project Setup](#project-setup) • [Endpoints](#endpoints) • [System Design](#system-design) • [Architecture](#architecture) • [Token Security](#token-security) • [Environment Variables](#environment-variables) • [Future Improvements](#future-improvements) • [Unit Tests](#unit-tests) • [Integration Tests](#integration-tests) • [E2E Tests](#e2e-tests)
+[Project Setup](#project-setup) • [Endpoints](#endpoints) • [System Design](#system-design) • [Architecture](#architecture) • [Token Security](#token-security) • [Environment Variables](#environment-variables) • [Future Improvements](#future-improvements) • [Unit Tests](#unit-tests) • [Integration Tests](#integration-tests) • [E2E Tests](#e2e-tests)  • [Idempotency](#Idempotency) 
 
 ---
 
@@ -126,6 +126,19 @@ FastAPI (Uvicorn)
         └── access token blacklist
             refresh token blacklist (on logout)
 ```
+
+
+## Idempotency
+
+### Flow Breakdown
+
+1. **Atomic Lock Acquisition:** The service attempts to write the key with a `processing` state using `SET key "processing" NX EX ttl`.
+   * **Success (Client 2):** If the key does not exist, the operation returns `True` and the client proceeds with the operation.
+   * **Failure (Client 1):** If the key already exists, Redis returns `None/False`.
+2. **Conflict Resolution:** If lock acquisition fails, the service performs a `GET` to determine the current state of the request:
+   * If state is `processing`, it raises `IdempotencyException("Request already in progress. Please wait.")`.
+   * If state is `completed`, it raises `IdempotencyException("Duplicate request. Operation already completed.")`.
+3. **Execution Teardown:** Once the business logic finishes successfully, the service calls `mark_completed()` to transition the state from `processing` to `completed`.
 
 ---
 
