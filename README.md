@@ -140,6 +140,10 @@ FastAPI (Uvicorn)
    * If state is `completed`, it raises `IdempotencyException("Duplicate request. Operation already completed.")`.
 3. **Execution Teardown:** Once the business logic finishes successfully, the service calls `mark_completed()` to transition the state from `processing` to `completed`.
 
+
+# diagram 
+![diagram](https://github.com/overdoseparsa/auth-service-fastapi/blob/main/images/Pasted%20image.png)
+
 ---
 
 ## Architecture
