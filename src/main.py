@@ -36,7 +36,6 @@ async def custom_exception_handler(request, exc: CustomException):
     )
 
 
-print("database url is ", settings.DATABASE_URL)
 
 
 def main():
