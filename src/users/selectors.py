@@ -35,7 +35,7 @@ class UserSelector:
         self.session_factory = session_factory
 
 
-    async def get_user_with_profile(self, user_id , with_profile:bool= True):
+    async def get_user_with_profile(self, user_id , with_profile:bool = True):
 
         async with self.session_factory() as session :
             async with session.begin():

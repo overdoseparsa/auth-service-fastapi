@@ -1,5 +1,13 @@
-import logging
-from typing import Awaitable, Callable, List, Optional
+from aiologger import Logger
+from typing import (
+    Awaitable,
+    Callable,
+    List,
+    Optional,
+    Tuple,
+    Dict,
+    Any
+)
 
 from asyncpg.exceptions import UniqueViolationError
 from sqlalchemy.exc import DBAPIError, IntegrityError
@@ -25,7 +33,7 @@ from .schemas import (
     UserUpdate,
 )
 
-logger = logging.getLogger(__name__)  # TOOD use aiologger
+logger = Logger.with_default_handlers(name='users_logger')
 
 
 def get_constraint_name_postgres(exc: UniqueViolationError) -> Optional[str]:
@@ -47,8 +55,9 @@ class UserService(BaseAbstractService):
         self.hasher_password = hasher_password
         self.hasher_token = hasher_token
 
-    async def pre_create_user_process(self, data: UserRegister):
-        logger.info("Creating user", extra={"email": data.email})
+
+    async def pre_create_user_process(self, data: UserRegister) -> Tuple[Dict[str, Any], str]:
+        await logger.info("Creating user", extra={"email": data.email})
 
         user_dict = data.model_dump()
         try:
@@ -60,7 +69,6 @@ class UserService(BaseAbstractService):
             token_hash = self.hasher_token(token)
             password_hash = await self.hasher_password(user_dict.pop("password"))
         except Exception as e:
-            print("e", e)
             raise
 
         fields = {
@@ -69,61 +77,119 @@ class UserService(BaseAbstractService):
         }
         return fields, token
 
-    async def db_create_user_process(self, session: AsyncSession, fields: dict):
 
+    async def db_create_user_process(self, session: AsyncSession, fields: dict) -> User:
         try:
             return await self.user_repo.create(session, **fields)
 
         except IntegrityError as exc:
-            print("Error from debugging ,,, ", exc)
-            # hint : This work just in postgres database driver
-            if exc.orig.pgcode == "23505":  # unique_violation
-                print(
-                    "Error3 from debugging ,,, ",
-                    type(exc),
-                    "yupe3",
-                    type(exc.orig),
-                    "type3 ... ",
-                    type(exec),
+            orig_exc = exc.orig
+            
+            if not orig_exc:
+                await logger.error("IntegrityError occurred without underlying driver exception")
+                raise DatabaseOperationError("Database integrity violation occurred")
+
+            pgcode = getattr(orig_exc, "pgcode", None)
+
+            if pgcode == "40001":
+                raise ConcurrencyError("Serialization Failure. Please retry transaction.")
+
+            if pgcode == "23505":
+                constraint_name = getattr(orig_exc, "constraint_name", None)
+                
+                if not constraint_name and hasattr(orig_exc, "message"):
+                    constraint_name = str(orig_exc.message)
+
+                await logger.warning(
+                    "Unique constraint violation occurred",
+                    extra={"constraint": constraint_name}
                 )
 
-                if isinstance(exc, UniqueViolationError):
-                    constraint: str | None = get_constraint_name_postgres(exc)
+                if constraint_name:
+                    if "uq_users_email" in constraint_name:
+                        raise EmailAlreadyExists("Email is already registered.")
+                    if "uq_users_username" in constraint_name:
+                        raise UsernameAlreadyExists("Username is already taken.")
+                    if "uq_users_token_hash" in constraint_name:
+                        raise DatabaseOperationError("Token collision detected.")
 
-                    if constraint == "uq_users_email":
-                        raise EmailAlreadyExists(message="email is alredey exist's")
+                raise DatabaseOperationError("Unique constraint violated on user creation.")
 
-                    if constraint == "uq_users_username":
-                        raise UsernameAlreadyExists("username already exists")
+            await logger.error("Database integrity error occurred", exc_info=True)
+            raise DatabaseOperationError(f"Database validation failed: {exc}")
 
-            if exc.orig.pgcode == "40001":  #  Serialization Failure
-                raise ConcurrencyError("Serialization Failure")
-
-            raise DatabaseOperationError(f"DatabaseError : Check System {exc}")
-
-        except DBAPIError as e:
-            logger.error(f"Database connection error: {e}")
-            raise DatabaseOperationError(f"DatabaseError : Check System {e}")
+        except DBAPIError as exc:
+            await logger.critical("Database connection or API level failure", exc_info=True)
+            raise DatabaseOperationError(f"Database connection error: {exc}")
 
     async def after_create_user_process(self, user: User) -> None:
 
-        logger.info(
+        await logger.info(
             "User created successfully", extra={"user_id": user.id, "email": user.email}
         )
 
-        "TODO save to the cache user by ttl"
+        
 
-    async def update_user(self, session: AsyncSession, user_id: int, data: UserUpdate):
+    # async def update_user(self, session: AsyncSession, user_id: int, data: UserUpdate):
+    #     try:
+    #         updated_user = await self.user_repo.update(
+    #             session=session,
+    #             user_id=user_id,
+    #             update_data=data.model_dump(exclude_unset=True),
+    #         )
+
+    #         return updated_user
+    #     except Exception as e:
+    #         raise e
+        
+
+    async def update_user(self, session: AsyncSession, user_id: int, data: UserUpdate) -> User:
+        user = await self.user_repo.get(session, user_id)
+        if not user:
+            raise UserNotExists("User not found")
+
         try:
             updated_user = await self.user_repo.update(
                 session=session,
-                user_id=user_id,
-                update_data=data.model_dump(exclude_unset=True),
+                user_id=user.id,
+                update_data = data.model_dump(exclude_unset=True),
             )
-
             return updated_user
-        except Exception as e:
-            raise e
+
+        except IntegrityError as exc:
+            orig_exc = exc.orig
+            if not orig_exc:
+                raise DatabaseOperationError("Database integrity violation during update.")
+
+            pgcode = getattr(orig_exc, "pgcode", None)
+
+            if pgcode == "23505":
+                constraint_name = getattr(orig_exc, "constraint_name", None)
+                if not constraint_name and hasattr(orig_exc, "message"):
+                    constraint_name = str(orig_exc.message)
+
+                await logger.warning(
+                    "Unique constraint violation during user update",
+                    extra={"user_id": user_id, "constraint": constraint_name}
+                )
+
+                if constraint_name:
+                    if "uq_users_email" in constraint_name:
+                        raise EmailAlreadyExists("Email is already registered.")
+                    if "uq_users_username" in constraint_name:
+                        raise UsernameAlreadyExists("Username is already taken.")
+                
+                raise DatabaseOperationError("Unique constraint violated on user update.")
+
+            if pgcode == "40001":
+                raise ConcurrencyError("Serialization Failure. Please retry transaction.")
+
+            raise DatabaseOperationError(f"Database error during update: {exc}")
+
+        except DBAPIError as exc:
+            await logger.critical(f"Database connection error during update for user {user_id}", exc_info=True)
+            raise DatabaseOperationError(f"Database connection error: {exc}")
+
 
     # async def create_bulk_user(self, session: AsyncSession, users_data: UsersRegister):
     #     try:
@@ -149,4 +215,4 @@ class ProfileService(BaseAbstractService):
             raise
 
     async def after_create_profile_process(self, profile: Profile):
-        logger.info("Creating profile", extra={"profile_id": profile.id})
+        await logger.info("Creating profile", extra={"profile_id": profile.id})

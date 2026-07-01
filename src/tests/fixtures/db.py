@@ -11,7 +11,9 @@ from tests.mocks.db import Session_Mock
 
 @pytest_asyncio.fixture
 async def db_session():
-    return Session_Mock()
+    mock_session = await Session_Mock()
+    yield mock_session
+    del mock_session
 
 
 @pytest_asyncio.fixture
@@ -21,7 +23,8 @@ async def async_session_factory():
         engine,
         class_=AsyncSession,
     )
-    return async_session
+    yield async_session
+    await engine.dispose()
 
 
 @pytest_asyncio.fixture

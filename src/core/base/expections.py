@@ -44,7 +44,12 @@ class UnprocessableEntity(CustomException):
 
 
 class DuplicateValueException(CustomException):
-    code = HTTPStatus.CONFLICT 
+    code = HTTPStatus.CONFLICT
     error_code = "DUPLICATE_VALUE"
     message = "Duplicate value found"
 
+
+class MustNotImplementError(CustomException):
+    code = HTTPStatus.INTERNAL_SERVER_ERROR
+    error_code = "MUST_NOT_IMPLEMENT"
+    message = "Method must not be implemented"

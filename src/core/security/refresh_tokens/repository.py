@@ -6,8 +6,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.base.expections import MustNotImplementError
 from core.base.repository import BaseRepository
-from core.exceptions import MustNotImplementError
 from core.security.jwt.schams import RefreshTokenCreate
 from models.tokens import RefreshTokenModel
 

@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     ENVIRONMENT: str
     DATABASE_URL: PostgresDsn
+    DATABASE_URL_TEST: PostgresDsn
+
     SECRET_KEY: str
 
     JWT_ALGORITHM: str
@@ -26,7 +28,7 @@ class Settings(BaseSettings):
     AUDIENCE: str = "Auth_service"
 
     REDIS_URL: RedisDsn
-
+    REDIS_URL_TEST: RedisDsn
     SQL_ECHO: bool = False
 
     HTTP_ONLY: bool = True
@@ -36,6 +38,8 @@ class Settings(BaseSettings):
 
     ISSUER: str
 
+    IDEMPOTENCY_HEADER_NAME: str = "X-Idempotency-Key"
+    IDEMPOTENCY_TTL: int = 30
     """
     validates and forces the use of asyncpg driver for PostgreSQL DSN
     if schema is not explicitly set to postgresql+asyncpg or postgres+asyncpg,
