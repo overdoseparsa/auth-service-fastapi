@@ -13,30 +13,38 @@ class IdempotencyService:
         self.redis = redis_client
         self.ttl = ttl_seconds
 
-    async def __call__(self, idempotency_key: str):
-
+    async def __call__(self, idempotency_key: str) -> str | None:
         if not idempotency_key:
             return None
 
         redis_key = f"idempotency:{idempotency_key}"
 
+        acquired = await self.redis.set(redis_key, "processing", ex=self.ttl, nx=True)
+
+        if acquired:
+            return idempotency_key
+
         status_value = await self.redis.get(redis_key)
-        print("status_values", status_value)
-        if status_value == "processing":
+        
+        if status_value is None:
+            return await self.__call__(idempotency_key)
+
+        if status_value == b"processing" or status_value == "processing":
             raise IdempotencyException(
                 "Request already in progress. Please wait.",
             )
 
-        if status_value == "completed":
+        if status_value == b"completed" or status_value == "completed":
             raise IdempotencyException(
                 "Duplicate request. Operation already completed.",
             )
 
-        acquired = await self.redis.set(redis_key, "processing", ex=self.ttl)
+        raise IdempotencyException("Conflict. Request collision detected.")
 
-        if not acquired:
-            raise IdempotencyException(
-                "Conflict. Request processing started by another thread.",
-            )
+    async def mark_completed(self, idempotency_key: str) -> None:
+        redis_key = f"idempotency:{idempotency_key}"
 
-        return idempotency_key
+
+        status_value = await self.redis.get(redis_key)
+        if status_value in (b"processing", "processing"):
+            await self.redis.set(redis_key, "completed", ex=self.ttl)

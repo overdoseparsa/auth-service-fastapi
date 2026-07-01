@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Optional
 from uuid import UUID
 
 from asyncpg.pgproto.pgproto import UUID as _UUID
@@ -15,9 +15,15 @@ redis_connection_pool = ConnectionPool.from_url(
 class RedisManager:
     """
     Interface for dependency inversion of Dependency Injection. :)
+
     """
 
-    def __init__(self):
+    def __init__(self, redis_url: Optional[str] = None) -> None:
+        if redis_url:
+            redis_connection_pool = ConnectionPool.from_url(
+                url=str(settings.REDIS_URL), max_connections=100
+            )
+
         self.redis = Redis(connection_pool=redis_connection_pool)
 
     def serialize(self, data):
@@ -41,10 +47,10 @@ class RedisManager:
         result = self.deserialize(result)
         return result
 
-    async def set(self, name, value, ex: int) -> Any:
+    async def set(self, name, value, ex: int, nx: bool = False) -> Any:
         name = self.serialize(name)
         value = self.serialize(value)
-        result = await self.redis.set(name, value, ex)
+        result = await self.redis.set(name, value, ex, nx=nx)
         result = self.deserialize(result)
         return result
 
@@ -52,6 +58,10 @@ class RedisManager:
         name = self.serialize(name)
         result = await self.redis.delete(name)
         result = self.deserialize(result)
+        return result
+
+    async def flush_all(self) -> Any:
+        result = await self.redis.flushall()
         return result
 
 

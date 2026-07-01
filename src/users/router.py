@@ -40,12 +40,16 @@ async def register_user(
         get_registration_service
     ),
 ):
-    print("idemptentcy" , idempotency_service)
     await idempotency_service(idempotency_key)
 
     user, token, profile = await registration_service.register(
         data=user_register_data,
     )
+
+
+    await idempotency_key.mark_completed(idempotency_key)
+
+    
 
     return UserRegiserWithProfile(
         user=UserResponse.model_validate(user),
