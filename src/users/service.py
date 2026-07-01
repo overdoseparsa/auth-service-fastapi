@@ -1,4 +1,4 @@
-import logging
+from aiologger import Logger
 from typing import (
     Awaitable,
     Callable,
@@ -33,7 +33,7 @@ from .schemas import (
     UserUpdate,
 )
 
-logger = logging.getLogger(__name__)  # TOOD use aiologger
+logger = Logger.with_default_handlers(name='users_logger')
 
 
 def get_constraint_name_postgres(exc: UniqueViolationError) -> Optional[str]:
@@ -57,7 +57,7 @@ class UserService(BaseAbstractService):
 
 
     async def pre_create_user_process(self, data: UserRegister) -> Tuple[Dict[str, Any], str]:
-        logger.info("Creating user", extra={"email": data.email})
+        await logger.info("Creating user", extra={"email": data.email})
 
         user_dict = data.model_dump()
         try:
@@ -69,7 +69,6 @@ class UserService(BaseAbstractService):
             token_hash = self.hasher_token(token)
             password_hash = await self.hasher_password(user_dict.pop("password"))
         except Exception as e:
-            print("e", e)
             raise
 
         fields = {
@@ -87,7 +86,7 @@ class UserService(BaseAbstractService):
             orig_exc = exc.orig
             
             if not orig_exc:
-                logger.error("IntegrityError occurred without underlying driver exception")
+                await logger.error("IntegrityError occurred without underlying driver exception")
                 raise DatabaseOperationError("Database integrity violation occurred")
 
             pgcode = getattr(orig_exc, "pgcode", None)
@@ -101,7 +100,7 @@ class UserService(BaseAbstractService):
                 if not constraint_name and hasattr(orig_exc, "message"):
                     constraint_name = str(orig_exc.message)
 
-                logger.warning(
+                await logger.warning(
                     "Unique constraint violation occurred",
                     extra={"constraint": constraint_name}
                 )
@@ -116,16 +115,16 @@ class UserService(BaseAbstractService):
 
                 raise DatabaseOperationError("Unique constraint violated on user creation.")
 
-            logger.error("Database integrity error occurred", exc_info=True)
+            await logger.error("Database integrity error occurred", exc_info=True)
             raise DatabaseOperationError(f"Database validation failed: {exc}")
 
         except DBAPIError as exc:
-            logger.critical("Database connection or API level failure", exc_info=True)
+            await logger.critical("Database connection or API level failure", exc_info=True)
             raise DatabaseOperationError(f"Database connection error: {exc}")
 
     async def after_create_user_process(self, user: User) -> None:
 
-        logger.info(
+        await logger.info(
             "User created successfully", extra={"user_id": user.id, "email": user.email}
         )
 
@@ -167,4 +166,4 @@ class ProfileService(BaseAbstractService):
             raise
 
     async def after_create_profile_process(self, profile: Profile):
-        logger.info("Creating profile", extra={"profile_id": profile.id})
+        await logger.info("Creating profile", extra={"profile_id": profile.id})
