@@ -300,7 +300,9 @@ The `rotated_from` field on each refresh token stores the `jti` of the token it 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATABASE_URL` | required | PostgreSQL DSN — `asyncpg` driver enforced automatically |
+| `DATABASE_URL_TEST` | required | PostgreSQL DSN — `asyncpg` driver enforced automatically |
 | `REDIS_URL` | required | Redis connection URL |
+| `REDIS_URL_TEST` | required | Redis connection URL |
 | `SECRET_KEY` | required | JWT signing secret |
 | `JWT_ALGORITHM` | required | e.g. `HS256` |
 | `ISSUER` | required | JWT `iss` claim value |
@@ -311,6 +313,8 @@ The `rotated_from` field on each refresh token stores the `jti` of the token it 
 | `HOST` | `localhost` | Uvicorn bind host |
 | `POST` | `8000` | Uvicorn bind port |
 | `SQL_ECHO` | `False` | Log all SQL statements (dev only) |
+| `IDEMPOTENCY_HEADER_NAME` | `X-Idempotency-Key` | Idempotency-Header for each Request |
+| `IDEMPOTENCY_TTL` | `30` | Idempotency time to live |
 
 ---
 
@@ -338,6 +342,9 @@ The `rotated_from` field on each refresh token stores the `jti` of the token it 
 
 5. **Alembic migrations** — schema is currently created via `Base.metadata.create_all`; proper migration management is needed before production deployment.
 
-6. **Logging** — `print()` debug statements are scattered through service and controller layers and need to be replaced with structured logging.
+6. **aio-Logging**  debug async  statements are scattered through service and controller layers and need to be replaced with structured logging sync.
 
 7. **Bulk user creation** — endpoint code is scaffolded but commented out.
+8. **Bulk Update creation** — endpoint code is scaffolded but commented out.
+9. **Stremming Response ** — for Scroll or RealTime User Retreive
+
