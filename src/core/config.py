@@ -38,6 +38,8 @@ class Settings(BaseSettings):
 
     ISSUER: str
 
+    IDEMPOTENCY_HEADER_NAME: str = "X-Idempotency-Key"
+    IDEMPOTENCY_TTL: int = 30
     """
     validates and forces the use of asyncpg driver for PostgreSQL DSN
     if schema is not explicitly set to postgresql+asyncpg or postgres+asyncpg,

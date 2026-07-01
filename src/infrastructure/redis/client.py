@@ -13,6 +13,10 @@ redis_connection_pool = ConnectionPool.from_url(
 
 
 class RedisManager:
+    """
+    Interface for dependency inversion of Dependency Injection. :)
+    """
+
     def __init__(self):
         self.redis = Redis(connection_pool=redis_connection_pool)
 

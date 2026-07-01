@@ -1,13 +1,11 @@
 from datetime import datetime
 from typing import List, Optional, Union
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    Query,
-    Request,
-    Response,
-)
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
+
+from core.config import settings
+from core.idempotency import get_idempotency_service
+from core.idempotency.service import IdempotencyService
 
 from .controllers import (
     UserRegistrationController,
@@ -26,8 +24,7 @@ from .schemas import (
 from .selectors import UserSelector
 
 """
-Hint : Apis Error handeling in the main.py with
-
+Hint : Apis Error handeling in the main.py
 """
 
 
@@ -37,10 +34,15 @@ router = APIRouter()
 @router.post("/users", response_model=UserRegiserWithProfile)
 async def register_user(
     user_register_data: UserRegister,
+    idempotency_key: str = Header(settings.IDEMPOTENCY_HEADER_NAME),
+    idempotency_service: IdempotencyService = Depends(get_idempotency_service),
     registration_service: UserRegistrationController = Depends(
         get_registration_service
     ),
 ):
+    print("idemptentcy" , idempotency_service)
+    await idempotency_service(idempotency_key)
+
     user, token, profile = await registration_service.register(
         data=user_register_data,
     )
