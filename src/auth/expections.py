@@ -19,3 +19,9 @@ class TokenInvalidError(CustomException):
     code = HTTPStatus.UNAUTHORIZED
     error_code = HTTPStatus.UNAUTHORIZED
     message = HTTPStatus.UNAUTHORIZED.description
+
+
+class ForbiddenException(CustomException):
+    code = HTTPStatus.FORBIDDEN
+    error_code = HTTPStatus.FORBIDDEN
+    message = HTTPStatus.FORBIDDEN.description

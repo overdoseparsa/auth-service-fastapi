@@ -1,7 +1,14 @@
 from datetime import datetime
 from typing import List, Optional, Union
 
-from fastapi import APIRouter, Depends, Header, Query, Request, Response
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    Query,
+    Request,
+    Response,
+)
 
 from core.config import settings
 from core.idempotency import get_idempotency_service
@@ -10,7 +17,11 @@ from core.idempotency.service import IdempotencyService
 from .controllers import (
     UserRegistrationController,
 )
-from .dependencies import get_registration_service, get_user_selector
+from .dependencies import (
+    get_current_user,
+    get_registration_service,
+    get_user_selector,
+)
 from .schemas import (
     ListUserResponse,
     ProfileResponse,
@@ -46,10 +57,7 @@ async def register_user(
         data=user_register_data,
     )
 
-
     await idempotency_key.mark_completed(idempotency_key)
-
-    
 
     return UserRegiserWithProfile(
         user=UserResponse.model_validate(user),
@@ -59,16 +67,13 @@ async def register_user(
 
 
 @router.get("/me", response_model=UserWithProfile)
-async def get_user(
+async def get_me(
     user_selector: UserSelector = Depends(get_user_selector),
-    # will be added auth get_current_user
+    current_user: int = Depends(get_current_user),
     inc_profile: bool = Query(True, description="Include user's profile"),
 ):
-    # currnet user 1
-    cur_user = 1
-
     user, profile = await user_selector.get_user_with_profile(
-        user_id=cur_user, with_profile=inc_profile
+        user_id=current_user.id, with_profile=inc_profile
     )
 
     return UserWithProfile(
@@ -80,7 +85,7 @@ async def get_user(
 
 
 @router.get("/users", response_model=ListUserResponse)
-async def get_user(
+async def get_users(
     user_selector: UserSelector = Depends(get_user_selector),
     filters: QueryFilterUsers = Depends(),
     created_lt: Optional[datetime] = Query(
