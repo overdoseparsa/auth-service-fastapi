@@ -11,7 +11,12 @@ from users.router import router as users_router
 
 async def create_models(app: FastAPI):
     await init_models()
+    # TODO check that Connections Befors StartUP app 
     yield
+    # Close Connection After Complete Close ... 
+
+
+
 
 
 app = FastAPI(lifespan=create_models)
@@ -36,6 +41,7 @@ async def custom_exception_handler(request, exc: CustomException):
     )
 
 
+from core.config import settings
 
 
 def main():

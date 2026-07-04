@@ -107,3 +107,7 @@ class JWTController:
         )
 
         return access_token, payload
+
+    async def get_user_id(self, access_token: str, **context) -> str:
+        decoded_access_token = self.service.decode_access_token(access_token)
+        return decoded_access_token.sub
